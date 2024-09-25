@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './AuthContext';
 import { ThemeProvider, createTheme } from '@mui/material/styles';  // Importujeme ThemeProvider a createTheme
+import { SpeedInsights } from "@vercel/speed-insights/react"
 import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
