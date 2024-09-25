@@ -26,6 +26,7 @@ const EventList = () => {
   const [error, setError] = useState("");
   const [openAddLog, setOpenAddLog] = useState(false);
   const [friends, setFriends] = useState([]);
+
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeek());
   const [selectedFriends, setSelectedFriends] = useState([]);
 
@@ -107,38 +108,43 @@ const EventList = () => {
   }, [selectedEvent, user.id, selectedWeek]);
 
   useEffect(() => {
-    const fetchFriends = async () => {
-      try {
-        const { data: friendIds, error: friendsError } = await supabase
-          .from("friends")
-          .select("friend_id")
-          .eq("user_id", user.id);
+    const fetchFriendsForEvent = async () => {
+      if (selectedEvent) {
+        try {
+          // Načíst ID přátel, kteří jsou účastníky eventu
+          const { data: participants, error: participantError } = await supabase
+            .from("event_participants")
+            .select("user_id")
+            .eq("event_id", selectedEvent)
+            .neq("user_id", user.id); // Vynecháme aktuálního uživatele
 
-        if (friendsError) {
-          setError("Chyba při načítání ID přátel: " + friendsError.message);
-          return;
+          if (participantError) {
+            setError("Chyba při načítání účastníků eventu: " + participantError.message);
+            return;
+          }
+
+          const participantIds = participants.map((participant) => participant.user_id);
+
+          // Načíst detaily uživatelů (přátel) na základě jejich ID
+          const { data: friendDetails, error: usersError } = await supabase
+            .from("users")
+            .select("*")
+            .in("id", participantIds);
+
+          if (usersError) {
+            setError("Chyba při načítání informací o uživatelích: " + usersError.message);
+            return;
+          }
+
+          setFriends(friendDetails);
+        } catch (err) {
+          setError("Došlo k chybě: " + err.message);
         }
-
-        const friendIdList = friendIds.map((friend) => friend.friend_id);
-
-        const { data: friendDetails, error: usersError } = await supabase
-          .from("users")
-          .select("*")
-          .in("id", friendIdList);
-
-        if (usersError) {
-          setError("Chyba při načítání informací o uživatelích: " + usersError.message);
-          return;
-        }
-
-        setFriends(friendDetails);
-      } catch (err) {
-        setError("Došlo k chybě: " + err.message);
       }
     };
 
-    fetchFriends();
-  }, [selectedEvent, user.id, selectedWeek]);
+    fetchFriendsForEvent();
+  }, [selectedEvent, user.id]);
 
   const fetchLogs = async () => {
     if (selectedEvent) {
@@ -278,14 +284,20 @@ const EventList = () => {
 
       <List>
         {events.map((event) => (
-          <ListItem key={event.id} button onClick={() => setSelectedEvent(event.id)}>
+          <ListItem
+            key={event.id}
+            button
+            onClick={() => {
+              setSelectedEvent(event.id);
+            }}
+          >
             <ListItemText primary={event.event_name} />
             <Button
               variant="outlined"
               color="primary"
               onClick={() => {
                 setSelectedEvent(event.id);
-                setOpenAddLog(true);
+                setOpenAddLog(true); // Otevři popup pro přidání logu
               }}
             >
               Přidat log
@@ -299,10 +311,12 @@ const EventList = () => {
 
       {selectedEvent && (
         <>
-          <div style={{ display: "flex", alignItems: "center", marginBottom: "20px", justifyContent: "center" }}>
+          <div
+            style={{ display: "flex", alignItems: "center", marginBottom: "20px", justifyContent: "center" }}
+          >
             <Button onClick={() => changeWeek("previous")}>&#8592;</Button>
             <Typography variant="h6" style={{ margin: "0 20px" }}>
-              {`Týden od ${selectedWeek[0].toLocaleDateString()} do ${selectedWeek[1].toLocaleDateString()}`}
+              {`${selectedWeek[0].toLocaleDateString("cs-CZ")} - ${selectedWeek[1].toLocaleDateString("cs-CZ")}`}
             </Typography>
             <Button onClick={() => changeWeek("next")}>&#8594;</Button>
           </div>
@@ -316,12 +330,15 @@ const EventList = () => {
                   edge="end"
                   onChange={() => handleFriendSelection(friend.id)}
                   checked={selectedFriends.includes(friend.id)}
-                  disabled={!selectedFriends.includes(friend.id) && selectedFriends.length >= 5}
+                  disabled={
+                    !selectedFriends.includes(friend.id) && selectedFriends.length >= 5
+                  }
                 />
               </ListItem>
             ))}
           </List>
 
+          {/* Graf aktivity */}
           {logs.data && logs.data.length > 0 ? (
             <div>
               <Typography variant="subtitle1">Graf aktivity:</Typography>
@@ -356,9 +373,7 @@ const EventList = () => {
           <AddLog eventId={selectedEvent} onClose={() => setOpenAddLog(false)} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenAddLog(false)} color="primary">
-            Zavřít
-          </Button>
+          <Button onClick={() => setOpenAddLog(false)} color="primary">Zavřít</Button>
         </DialogActions>
       </Dialog>
     </Paper>
