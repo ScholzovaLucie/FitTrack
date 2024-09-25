@@ -26,29 +26,41 @@ const EventList = () => {
   const [error, setError] = useState("");
   const [openAddLog, setOpenAddLog] = useState(false);
   const [friends, setFriends] = useState([]);
-
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
+  const [selectedWeek, setSelectedWeek] = useState(getCurrentWeek());
   const [selectedFriends, setSelectedFriends] = useState([]);
 
   const handleFriendSelection = (friendId) => {
     setSelectedFriends((prevSelected) => {
       if (prevSelected.includes(friendId)) {
-        // Odebrat přítele ze seznamu
         return prevSelected.filter((id) => id !== friendId);
       } else if (prevSelected.length < 5) {
-        // Přidat přítele do seznamu
         return [...prevSelected, friendId];
       } else {
-        // Pokud je dosažen limit 5 přátel
         alert("Můžete vybrat maximálně 5 přátel.");
         return prevSelected;
       }
     });
   };
 
+  function getCurrentWeek() {
+    const today = new Date();
+    const firstDayOfWeek = new Date(today.setDate(today.getDate() - today.getDay() + 1)); // Pondělí
+    const lastDayOfWeek = new Date(today.setDate(firstDayOfWeek.getDate() + 6)); // Neděle
+    return [firstDayOfWeek, lastDayOfWeek];
+  }
 
+  const changeWeek = (direction) => {
+    const [startDate, endDate] = selectedWeek;
+    const oneWeek = 7 * 24 * 60 * 60 * 1000; // Jeden týden v milisekundách
+
+    const newStartDate =
+      direction === "previous"
+        ? new Date(startDate.getTime() - oneWeek)
+        : new Date(startDate.getTime() + oneWeek);
+    const newEndDate = new Date(newStartDate.getTime() + oneWeek - 1);
+
+    setSelectedWeek([newStartDate, newEndDate]);
+  };
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -63,22 +75,17 @@ const EventList = () => {
           return;
         }
 
-        const { data: participantData, error: participantError } =
-          await supabase
-            .from("event_participants")
-            .select("user_id, event_id")
-            .eq("user_id", user.id);
+        const { data: participantData, error: participantError } = await supabase
+          .from("event_participants")
+          .select("user_id, event_id")
+          .eq("user_id", user.id);
 
         if (participantError) {
-          setError(
-            "Chyba při načítání účastníků eventů: " + participantError.message
-          );
+          setError("Chyba při načítání účastníků eventů: " + participantError.message);
           return;
         }
 
-        const eventIds = participantData.map(
-          (participant) => participant.event_id
-        );
+        const eventIds = participantData.map((participant) => participant.event_id);
 
         const { data: sharedEvents, error: sharedError } = await supabase
           .from("events")
@@ -86,9 +93,7 @@ const EventList = () => {
           .in("id", eventIds);
 
         if (sharedError) {
-          setError(
-            "Chyba při načítání sdílených eventů: " + sharedError.message
-          );
+          setError("Chyba při načítání sdílených eventů: " + sharedError.message);
           return;
         }
 
@@ -99,50 +104,47 @@ const EventList = () => {
     };
 
     fetchEvents();
-  }, [selectedEvent, user.id, selectedMonth, selectedYear]);
+  }, [selectedEvent, user.id, selectedWeek]);
 
   useEffect(() => {
     const fetchFriends = async () => {
       try {
         const { data: friendIds, error: friendsError } = await supabase
-          .from('friends')
-          .select('friend_id')
-          .eq('user_id', user.id);
+          .from("friends")
+          .select("friend_id")
+          .eq("user_id", user.id);
 
         if (friendsError) {
-          setError('Chyba při načítání ID přátel: ' + friendsError.message);
+          setError("Chyba při načítání ID přátel: " + friendsError.message);
           return;
         }
 
-        const friendIdList = friendIds.map(friend => friend.friend_id);
+        const friendIdList = friendIds.map((friend) => friend.friend_id);
 
         const { data: friendDetails, error: usersError } = await supabase
-          .from('users')
-          .select('*')
-          .in('id', friendIdList);  // Filtruj uživatele podle friend_id
+          .from("users")
+          .select("*")
+          .in("id", friendIdList);
 
         if (usersError) {
-          setError('Chyba při načítání informací o uživatelích: ' + usersError.message);
+          setError("Chyba při načítání informací o uživatelích: " + usersError.message);
           return;
         }
 
         setFriends(friendDetails);
       } catch (err) {
-        setError('Došlo k chybě: ' + err.message);
+        setError("Došlo k chybě: " + err.message);
       }
     };
 
     fetchFriends();
-  }, [selectedEvent, user.id, selectedMonth, selectedYear]);
-
+  }, [selectedEvent, user.id, selectedWeek]);
 
   const fetchLogs = async () => {
     if (selectedEvent) {
       try {
-        const startDate = new Date(selectedYear, selectedMonth, 1);
-        const endDate = new Date(selectedYear, selectedMonth + 1, 0);
+        const [startDate, endDate] = selectedWeek;
 
-        // Načíst všechny logy pro vybraný event a časový rozsah
         const { data: allLogs, error: logsError } = await supabase
           .from("event_logs")
           .select("*")
@@ -155,13 +157,9 @@ const EventList = () => {
           return;
         }
 
-        // Získat seznam uživatelských ID: přihlášený uživatel + vybraní přátelé
         const userIds = [user.id, ...selectedFriends];
-
-        // Filtrovat logy pouze pro vybrané uživatele
         const filteredLogs = allLogs.filter((log) => userIds.includes(log.user_id));
 
-        // Mapa uživatelských ID na uživatelská jména
         const userMap = {
           [user.id]: "Já",
           ...friends
@@ -172,7 +170,6 @@ const EventList = () => {
             }, {}),
         };
 
-        // Příprava barev pro uživatele
         const colorPalette = [
           "#8884d8",
           "#82ca9d",
@@ -181,16 +178,14 @@ const EventList = () => {
           "#a4de6c",
           "#d0ed57",
           "#8dd1e1",
-          // Přidejte více barev podle potřeby
         ];
         const colors = {};
         userIds.forEach((id, index) => {
           colors[id] = colorPalette[index % colorPalette.length];
         });
 
-        // Příprava dat pro graf
-        const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
-        const chartData = daysInMonth.map((date) => {
+        const daysInWeek = getDaysInWeek(startDate, endDate);
+        const chartData = daysInWeek.map((date) => {
           const dateString = date.getDate().toString();
           const dataForDate = { date: dateString };
 
@@ -220,74 +215,59 @@ const EventList = () => {
     }
   };
 
-
-  fetchLogs();
-
-
   useEffect(() => {
     fetchLogs();
-  }, [selectedEvent, user.id, selectedMonth, selectedYear, friends, selectedFriends]);
+  }, [selectedEvent, user.id, selectedWeek, friends, selectedFriends]);
 
-
-
-
-  useEffect(() => {
-    fetchLogs();
-  }, [selectedEvent, user.id, selectedMonth, selectedYear, friends]);
-
-  const getDaysInMonth = (month, year) => {
-    const date = new Date(year, month, 1);
+  const getDaysInWeek = (startDate, endDate) => {
     const days = [];
-    while (date.getMonth() === month) {
-      days.push(new Date(date));
-      date.setDate(date.getDate() + 1);
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      days.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
     }
     return days;
   };
 
   const handleDeleteEvent = async (eventId) => {
-    if (!window.confirm('Opravdu chcete tento event odstranit?')) {
+    if (!window.confirm("Opravdu chcete tento event odstranit?")) {
       return;
     }
 
     try {
-      // Odstranit všechny záznamy z event_participants
       const { error: deleteParticipantsError } = await supabase
-        .from('event_participants')
+        .from("event_participants")
         .delete()
-        .eq('event_id', eventId);
+        .eq("event_id", eventId);
 
       if (deleteParticipantsError) {
-        setError('Chyba při odstraňování účastníků eventu: ' + deleteParticipantsError.message);
+        setError("Chyba při odstraňování účastníků eventu: " + deleteParticipantsError.message);
         return;
       }
 
-      // Odstranit všechny logy z event_logs
       const { error: deleteLogsError } = await supabase
-        .from('event_logs')
+        .from("event_logs")
         .delete()
-        .eq('event_id', eventId);
+        .eq("event_id", eventId);
 
       if (deleteLogsError) {
-        setError('Chyba při odstraňování logů: ' + deleteLogsError.message);
+        setError("Chyba při odstraňování logů: " + deleteLogsError.message);
         return;
       }
 
-      // Odstranit samotný event z events
       const { error: deleteEventError } = await supabase
-        .from('events')
+        .from("events")
         .delete()
-        .eq('id', eventId);
+        .eq("id", eventId);
 
       if (deleteEventError) {
-        setError('Chyba při odstraňování eventu: ' + deleteEventError.message);
+        setError("Chyba při odstraňování eventu: " + deleteEventError.message);
         return;
       }
 
-      // Aktualizovat seznam eventů po odstranění
-      setEvents(events.filter(event => event.id !== eventId));
+      setEvents(events.filter((event) => event.id !== eventId));
     } catch (err) {
-      setError('Došlo k chybě: ' + err.message);
+      setError("Došlo k chybě: " + err.message);
     }
   };
 
@@ -298,20 +278,14 @@ const EventList = () => {
 
       <List>
         {events.map((event) => (
-          <ListItem
-            key={event.id}
-            button
-            onClick={() => {
-              setSelectedEvent(event.id);
-            }}
-          >
+          <ListItem key={event.id} button onClick={() => setSelectedEvent(event.id)}>
             <ListItemText primary={event.event_name} />
             <Button
               variant="outlined"
               color="primary"
               onClick={() => {
                 setSelectedEvent(event.id);
-                setOpenAddLog(true); // Otevři popup pro přidání logu
+                setOpenAddLog(true);
               }}
             >
               Přidat log
@@ -325,40 +299,12 @@ const EventList = () => {
 
       {selectedEvent && (
         <>
-          {/* Ovládací prvky pro přepínání měsíců */}
-          <div
-            style={{ display: "flex", alignItems: "center", marginBottom: "20px", justifyContent: "center" }}
-          >
-            <Button
-              onClick={() => {
-                if (selectedMonth === 0) {
-                  setSelectedMonth(11);
-                  setSelectedYear(selectedYear - 1);
-                } else {
-                  setSelectedMonth(selectedMonth - 1);
-                }
-              }}
-            >
-              &#8592;
-            </Button>
+          <div style={{ display: "flex", alignItems: "center", marginBottom: "20px", justifyContent: "center" }}>
+            <Button onClick={() => changeWeek("previous")}>&#8592;</Button>
             <Typography variant="h6" style={{ margin: "0 20px" }}>
-              {new Date(selectedYear, selectedMonth).toLocaleString("cs-CZ", {
-                month: "long",
-                year: "numeric",
-              })}
+              {`Týden od ${selectedWeek[0].toLocaleDateString()} do ${selectedWeek[1].toLocaleDateString()}`}
             </Typography>
-            <Button
-              onClick={() => {
-                if (selectedMonth === 11) {
-                  setSelectedMonth(0);
-                  setSelectedYear(selectedYear + 1);
-                } else {
-                  setSelectedMonth(selectedMonth + 1);
-                }
-              }}
-            >
-              &#8594;
-            </Button>
+            <Button onClick={() => changeWeek("next")}>&#8594;</Button>
           </div>
 
           <Typography variant="subtitle1">Vyberte přátele k zobrazení:</Typography>
@@ -370,16 +316,12 @@ const EventList = () => {
                   edge="end"
                   onChange={() => handleFriendSelection(friend.id)}
                   checked={selectedFriends.includes(friend.id)}
-                  disabled={
-                    !selectedFriends.includes(friend.id) && selectedFriends.length >= 5
-                  }
+                  disabled={!selectedFriends.includes(friend.id) && selectedFriends.length >= 5}
                 />
               </ListItem>
             ))}
           </List>
 
-
-          {/* Graf aktivity */}
           {logs.data && logs.data.length > 0 ? (
             <div>
               <Typography variant="subtitle1">Graf aktivity:</Typography>
@@ -388,38 +330,30 @@ const EventList = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="date"
-                    label={{ value: 'Den', position: 'insideBottom', offset: -5 }}
+                    label={{ value: "Den", position: "insideBottom", offset: -5 }}
                     interval={0}
-                    tick={{ angle: 0, textAnchor: 'middle' }}
+                    tick={{ angle: 0, textAnchor: "middle" }}
                     height={40}
                   />
-                  <YAxis width={10}/>
+                  <YAxis width={10} />
                   <Tooltip />
                   <Legend />
                   {Object.keys(logs.userMap).map((userId) => (
-                    <Bar
-                      key={userId}
-                      dataKey={logs.userMap[userId]}
-                      fill={logs.colors[userId]}
-                    />
+                    <Bar key={userId} dataKey={logs.userMap[userId]} fill={logs.colors[userId]} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <Typography variant="body2">Žádné záznamy pro tento měsíc.</Typography>
+            <Typography variant="body2">Žádné záznamy pro tento týden.</Typography>
           )}
-
         </>
       )}
-      {/* Dialog pro přidání záznamu */}
+
       <Dialog open={openAddLog} onClose={() => setOpenAddLog(false)}>
         <DialogTitle>Přidat záznam k eventu</DialogTitle>
         <DialogContent>
-          <AddLog
-            eventId={selectedEvent}
-            onClose={() => setOpenAddLog(false)}
-          />
+          <AddLog eventId={selectedEvent} onClose={() => setOpenAddLog(false)} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenAddLog(false)} color="primary">
