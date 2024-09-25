@@ -16,7 +16,7 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider theme={theme}>  {/* Obalení aplikace do ThemeProvider */}
-      <Router basename="/FitTrack"> 
+      <Router basename="/"> 
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
