@@ -47,7 +47,7 @@ const EventList = () => {
       }
     });
   };
-  
+
 
 
   useEffect(() => {
@@ -141,7 +141,7 @@ const EventList = () => {
       try {
         const startDate = new Date(selectedYear, selectedMonth, 1);
         const endDate = new Date(selectedYear, selectedMonth + 1, 0);
-  
+
         // Načíst všechny logy pro vybraný event a časový rozsah
         const { data: allLogs, error: logsError } = await supabase
           .from("event_logs")
@@ -149,29 +149,29 @@ const EventList = () => {
           .eq("event_id", selectedEvent)
           .gte("log_date", startDate.toISOString())
           .lte("log_date", endDate.toISOString());
-  
+
         if (logsError) {
           setError("Chyba při načítání logů: " + logsError.message);
           return;
         }
-  
+
         // Získat seznam uživatelských ID: přihlášený uživatel + vybraní přátelé
         const userIds = [user.id, ...selectedFriends];
-  
+
         // Filtrovat logy pouze pro vybrané uživatele
         const filteredLogs = allLogs.filter((log) => userIds.includes(log.user_id));
-  
+
         // Mapa uživatelských ID na uživatelská jména
         const userMap = {
           [user.id]: "Já",
           ...friends
             .filter((friend) => selectedFriends.includes(friend.id))
             .reduce((acc, friend) => {
-              acc[friend.id] = friend.name|| friend.username;
+              acc[friend.id] = friend.name || friend.username;
               return acc;
             }, {}),
         };
-  
+
         // Příprava barev pro uživatele
         const colorPalette = [
           "#8884d8",
@@ -187,28 +187,28 @@ const EventList = () => {
         userIds.forEach((id, index) => {
           colors[id] = colorPalette[index % colorPalette.length];
         });
-  
+
         // Příprava dat pro graf
         const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
         const chartData = daysInMonth.map((date) => {
           const dateString = date.getDate().toString();
           const dataForDate = { date: dateString };
-  
+
           userIds.forEach((id) => {
             const user = userMap[id];
             dataForDate[user] = 0;
           });
-  
+
           filteredLogs
             .filter((log) => new Date(log.log_date).getDate() === date.getDate())
             .forEach((log) => {
               const user = userMap[log.user_id];
               dataForDate[user] += log.duration;
             });
-  
+
           return dataForDate;
         });
-  
+
         setLogs({
           data: chartData,
           colors,
@@ -219,7 +219,7 @@ const EventList = () => {
       }
     }
   };
-  
+
 
   fetchLogs();
 
@@ -227,7 +227,7 @@ const EventList = () => {
   useEffect(() => {
     fetchLogs();
   }, [selectedEvent, user.id, selectedMonth, selectedYear, friends, selectedFriends]);
-  
+
 
 
 
@@ -313,28 +313,28 @@ const EventList = () => {
           </div>
 
           <Typography variant="subtitle1">Vyberte přátele k zobrazení:</Typography>
-<List dense>
-  {friends.map((friend) => (
-    <ListItem key={friend.id} dense>
-      <ListItemText primary={friend.name || friend.username} />
-      <Checkbox
-        edge="end"
-        onChange={() => handleFriendSelection(friend.id)}
-        checked={selectedFriends.includes(friend.id)}
-        disabled={
-          !selectedFriends.includes(friend.id) && selectedFriends.length >= 5
-        }
-      />
-    </ListItem>
-  ))}
-</List>
+          <List dense>
+            {friends.map((friend) => (
+              <ListItem key={friend.id} dense>
+                <ListItemText primary={friend.name || friend.username} />
+                <Checkbox
+                  edge="end"
+                  onChange={() => handleFriendSelection(friend.id)}
+                  checked={selectedFriends.includes(friend.id)}
+                  disabled={
+                    !selectedFriends.includes(friend.id) && selectedFriends.length >= 5
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
 
 
           {/* Graf aktivity */}
           {logs.data && logs.data.length > 0 ? (
             <div>
               <Typography variant="subtitle1">Graf aktivity:</Typography>
-              <ResponsiveContainer width="100%" height={400}>
+              <ResponsiveContainer width="150%" height={400}>
                 <BarChart data={logs.data}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
@@ -344,7 +344,7 @@ const EventList = () => {
                     tick={{ angle: 0, textAnchor: 'middle' }}
                     height={40}
                   />
-                  <YAxis />
+                  <YAxis width={10}/>
                   <Tooltip />
                   <Legend />
                   {Object.keys(logs.userMap).map((userId) => (
