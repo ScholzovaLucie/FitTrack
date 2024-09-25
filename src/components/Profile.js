@@ -18,7 +18,7 @@ const Profile = () => {
       try {
         const { data: userProfile, error } = await supabase
           .from('users')
-          .select('username, email, extern_id', 'name')
+          .select('username, email, extern_id, name')
           .eq('id', user.id)
           .single();
 
@@ -31,7 +31,8 @@ const Profile = () => {
         setUsername(userProfile.username);
         setEmail(userProfile.email);
         setExternId(userProfile.extern_id);
-        setName(userProfile.name)
+        setName(userProfile.name);
+        console.log(userProfile);
       } catch (err) {
         setError('Došlo k chybě: ' + err.message);
       }
