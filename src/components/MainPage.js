@@ -15,6 +15,7 @@ import CreateEvent from './CreateEvent';
 import EventList from './EventList';
 import FriendList from './FriendList';
 import Profile from './Profile';
+import EventTimer from './EventTimer'
 import { useAuth } from '../AuthContext'; // Importujte váš kontext pro autentizaci
 
 const MainPage = () => {
@@ -23,6 +24,7 @@ const MainPage = () => {
   const [openFriendList, setOpenFriendList] = useState(false);
   const [openProfile, setOpenProfile] = useState(false);
   const { setUser } = useAuth(); 
+  const [runningEventId, setRunningEventId] = useState(null); 
 
 
   const handleAddFriendClose = () => setOpenAddFriend(false);
@@ -79,7 +81,13 @@ const MainPage = () => {
         </Grid>
       </Grid>
       <Grid item xs={12}>
-        <EventList />
+        {/* Předání runningEventId a setRunningEventId do EventList */}
+      <Grid item xs={12}>
+        <EventList
+          runningEventId={runningEventId}
+          setRunningEventId={setRunningEventId}
+        />
+      </Grid>
       </Grid>
 
       {/* Dialog pro profil */}

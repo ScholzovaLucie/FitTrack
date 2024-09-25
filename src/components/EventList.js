@@ -17,12 +17,14 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, Responsive
 import supabase from "../supabaseClient";
 import { useAuth } from "../AuthContext";
 import AddLog from "./AddLog";
+import EventTimer from "./EventTimer";
 
-const EventList = () => {
+const EventList = ({ runningEventId, setRunningEventId }) => {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
-  const [logs, setLogs] = useState({ user: [], friends: [] });
+  const [logs, setLogs] = useState({ user: [], friends: [] , colors: {}, userMap: {} });
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedEventName, setSelectedEventName] = useState("");
   const [error, setError] = useState("");
   const [openAddLog, setOpenAddLog] = useState(false);
   const [friends, setFriends] = useState([]);
@@ -41,6 +43,10 @@ const EventList = () => {
         return prevSelected;
       }
     });
+  };
+
+  const handleTimerStop = () => {
+    fetchLogs();
   };
 
   function getCurrentWeek() {
@@ -289,20 +295,30 @@ const EventList = () => {
             button
             onClick={() => {
               setSelectedEvent(event.id);
+              setSelectedEventName(event.event_name)
             }}
           >
             <ListItemText primary={event.event_name} />
             <Button
               variant="outlined"
               color="primary"
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setSelectedEvent(event.id);
+                setSelectedEventName(event.event_name)
                 setOpenAddLog(true); // Otevři popup pro přidání logu
               }}
             >
               Přidat log
             </Button>
-            <Button variant="outlined" color="secondary" onClick={() => handleDeleteEvent(event.id)}>
+            <Button
+              variant="outlined"
+              color="secondary"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDeleteEvent(event.id);
+              }}
+            >
               Odstranit
             </Button>
           </ListItem>
@@ -311,12 +327,29 @@ const EventList = () => {
 
       {selectedEvent && (
         <>
+          {/* Zobrazit časovač pro vybraný event */}
+          <EventTimer
+            eventId={selectedEvent}
+            runningEventId={runningEventId}
+            setRunningEventId={setRunningEventId}
+            eventName={selectedEventName}
+            onTimerStop={handleTimerStop}
+          />
+
+          {/* Ovládací prvky pro přepínání týdnů */}
           <div
-            style={{ display: "flex", alignItems: "center", marginBottom: "20px", justifyContent: "center" }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              marginBottom: "20px",
+              justifyContent: "center",
+            }}
           >
             <Button onClick={() => changeWeek("previous")}>&#8592;</Button>
             <Typography variant="h6" style={{ margin: "0 20px" }}>
-              {`${selectedWeek[0].toLocaleDateString("cs-CZ")} - ${selectedWeek[1].toLocaleDateString("cs-CZ")}`}
+              {`${selectedWeek[0].toLocaleDateString(
+                "cs-CZ"
+              )} - ${selectedWeek[1].toLocaleDateString("cs-CZ")}`}
             </Typography>
             <Button onClick={() => changeWeek("next")}>&#8594;</Button>
           </div>
@@ -331,7 +364,8 @@ const EventList = () => {
                   onChange={() => handleFriendSelection(friend.id)}
                   checked={selectedFriends.includes(friend.id)}
                   disabled={
-                    !selectedFriends.includes(friend.id) && selectedFriends.length >= 5
+                    !selectedFriends.includes(friend.id) &&
+                    selectedFriends.length >= 5
                   }
                 />
               </ListItem>
@@ -356,24 +390,33 @@ const EventList = () => {
                   <Tooltip />
                   <Legend />
                   {Object.keys(logs.userMap).map((userId) => (
-                    <Bar key={userId} dataKey={logs.userMap[userId]} fill={logs.colors[userId]} />
+                    <Bar
+                      key={userId}
+                      dataKey={logs.userMap[userId]}
+                      fill={logs.colors[userId]}
+                    />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
             </div>
           ) : (
-            <Typography variant="body2">Žádné záznamy pro tento týden.</Typography>
+            <Typography variant="body2">
+              Žádné záznamy pro tento týden.
+            </Typography>
           )}
         </>
       )}
 
+      {/* Dialog pro přidání záznamu */}
       <Dialog open={openAddLog} onClose={() => setOpenAddLog(false)}>
         <DialogTitle>Přidat záznam k eventu</DialogTitle>
         <DialogContent>
           <AddLog eventId={selectedEvent} onClose={() => setOpenAddLog(false)} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenAddLog(false)} color="primary">Zavřít</Button>
+          <Button onClick={() => setOpenAddLog(false)} color="primary">
+            Zavřít
+          </Button>
         </DialogActions>
       </Dialog>
     </Paper>
