@@ -6,6 +6,7 @@ import { useAuth } from '../AuthContext';
 const Profile = () => {
   const { user, setUser } = useAuth();  // Získání aktuálního uživatele
   const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [externId, setExternId] = useState('');
   const [message, setMessage] = useState('');
@@ -17,7 +18,7 @@ const Profile = () => {
       try {
         const { data: userProfile, error } = await supabase
           .from('users')
-          .select('username, email, extern_id')
+          .select('username, email, extern_id', 'name')
           .eq('id', user.id)
           .single();
 
@@ -30,6 +31,7 @@ const Profile = () => {
         setUsername(userProfile.username);
         setEmail(userProfile.email);
         setExternId(userProfile.extern_id);
+        setName(userProfile.name)
       } catch (err) {
         setError('Došlo k chybě: ' + err.message);
       }
@@ -45,7 +47,7 @@ const Profile = () => {
     try {
       const { error } = await supabase
         .from('users')
-        .update({ username, email })
+        .update({ username, email, name })
         .eq('id', user.id);
 
       if (error) {
@@ -60,6 +62,7 @@ const Profile = () => {
         ...prevUser,
         username,
         email,
+        name
       }));
     } catch (err) {
       setError('Došlo k chybě: ' + err.message);
@@ -80,6 +83,15 @@ const Profile = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 fullWidth
+                  className="textFieldMargin"
+              />
+              <TextField
+                label="Jméno"
+                variant="outlined"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                fullWidth
+                  className="textFieldMargin"
               />
               <TextField
                 label="Email"
@@ -88,6 +100,7 @@ const Profile = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 fullWidth
+                  className="textFieldMargin"
               />
               <TextField
                 label="Extern ID"
@@ -95,6 +108,7 @@ const Profile = () => {
                 value={externId}
                 disabled
                 fullWidth
+                  className="textFieldMargin"
               />
               <Button type="submit" variant="contained" color="primary" style={{ marginTop: '16px' }}>
                 Uložit změny

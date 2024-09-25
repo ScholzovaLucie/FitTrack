@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Checkbox
 } from "@mui/material";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
 import supabase from "../supabaseClient";
@@ -28,6 +29,25 @@ const EventList = () => {
 
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const [selectedFriends, setSelectedFriends] = useState([]);
+
+  const handleFriendSelection = (friendId) => {
+    setSelectedFriends((prevSelected) => {
+      if (prevSelected.includes(friendId)) {
+        // Odebrat přítele ze seznamu
+        return prevSelected.filter((id) => id !== friendId);
+      } else if (prevSelected.length < 5) {
+        // Přidat přítele do seznamu
+        return [...prevSelected, friendId];
+      } else {
+        // Pokud je dosažen limit 5 přátel
+        alert("Můžete vybrat maximálně 5 přátel.");
+        return prevSelected;
+      }
+    });
+  };
+  
 
 
   useEffect(() => {
@@ -95,7 +115,7 @@ const EventList = () => {
         }
 
         const friendIdList = friendIds.map(friend => friend.friend_id);
-        
+
         const { data: friendDetails, error: usersError } = await supabase
           .from('users')
           .select('*')
@@ -115,109 +135,105 @@ const EventList = () => {
     fetchFriends();
   }, [selectedEvent, user.id, selectedMonth, selectedYear]);
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      if (selectedEvent) {
-        try {
-          const startDate = new Date(selectedYear, selectedMonth, 1);
-          const endDate = new Date(selectedYear, selectedMonth + 1, 0);
 
-          // Načíst všechny logy pro vybraný event a časový rozsah
-          const { data: allLogs, error: logsError } = await supabase
-            .from("event_logs")
-            .select("*")
-            .eq("event_id", selectedEvent)
-            .gte("log_date", startDate.toISOString())
-            .lte("log_date", endDate.toISOString());
-
-          if (logsError) {
-            setError("Chyba při načítání logů: " + logsError.message);
-            return;
-          }
-
-          // Získat seznam všech uživatelů (ID) zapojených do logů
-          const userIds = [...new Set(allLogs.map((log) => log.user_id))];
-
-          // Mapa uživatelských ID na uživatelská jména
-          const userMap = {
-            [user.id]: "Já",
-            ...friends.reduce((acc, friend) => {
-              acc[friend.id] = friend.username;
+  const fetchLogs = async () => {
+    if (selectedEvent) {
+      try {
+        const startDate = new Date(selectedYear, selectedMonth, 1);
+        const endDate = new Date(selectedYear, selectedMonth + 1, 0);
+  
+        // Načíst všechny logy pro vybraný event a časový rozsah
+        const { data: allLogs, error: logsError } = await supabase
+          .from("event_logs")
+          .select("*")
+          .eq("event_id", selectedEvent)
+          .gte("log_date", startDate.toISOString())
+          .lte("log_date", endDate.toISOString());
+  
+        if (logsError) {
+          setError("Chyba při načítání logů: " + logsError.message);
+          return;
+        }
+  
+        // Získat seznam uživatelských ID: přihlášený uživatel + vybraní přátelé
+        const userIds = [user.id, ...selectedFriends];
+  
+        // Filtrovat logy pouze pro vybrané uživatele
+        const filteredLogs = allLogs.filter((log) => userIds.includes(log.user_id));
+  
+        // Mapa uživatelských ID na uživatelská jména
+        const userMap = {
+          [user.id]: "Já",
+          ...friends
+            .filter((friend) => selectedFriends.includes(friend.id))
+            .reduce((acc, friend) => {
+              acc[friend.id] = friend.name|| friend.username;
               return acc;
             }, {}),
-          };
-
-          // Pokud jsou v logách další uživatelé, načtěte jejich uživatelská jména
-          const unknownUserIds = userIds.filter((id) => !userMap[id]);
-          if (unknownUserIds.length > 0) {
-            const { data: otherUsers, error: usersError } = await supabase
-              .from("users")
-              .select("id, username")
-              .in("id", unknownUserIds);
-
-            if (usersError) {
-              setError("Chyba při načítání uživatelů: " + usersError.message);
-              return;
-            }
-
-            otherUsers.forEach((u) => {
-              userMap[u.id] = u.username;
+        };
+  
+        // Příprava barev pro uživatele
+        const colorPalette = [
+          "#8884d8",
+          "#82ca9d",
+          "#ffc658",
+          "#ff8042",
+          "#a4de6c",
+          "#d0ed57",
+          "#8dd1e1",
+          // Přidejte více barev podle potřeby
+        ];
+        const colors = {};
+        userIds.forEach((id, index) => {
+          colors[id] = colorPalette[index % colorPalette.length];
+        });
+  
+        // Příprava dat pro graf
+        const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+        const chartData = daysInMonth.map((date) => {
+          const dateString = date.getDate().toString();
+          const dataForDate = { date: dateString };
+  
+          userIds.forEach((id) => {
+            const user = userMap[id];
+            dataForDate[user] = 0;
+          });
+  
+          filteredLogs
+            .filter((log) => new Date(log.log_date).getDate() === date.getDate())
+            .forEach((log) => {
+              const user = userMap[log.user_id];
+              dataForDate[user] += log.duration;
             });
-          }
-
-          // Příprava barev pro uživatele
-          const colorPalette = [
-            "#8884d8",
-            "#82ca9d",
-            "#ffc658",
-            "#ff8042",
-            "#a4de6c",
-            "#d0ed57",
-            "#8dd1e1",
-          ];
-          const colors = {};
-          userIds.forEach((id, index) => {
-            colors[id] = colorPalette[index % colorPalette.length];
-          });
-
-          // Příprava dat pro graf
-          const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
-          const chartData = daysInMonth.map((date) => {
-            const dateString = date.getDate().toString();
-            const dataForDate = { date: dateString };
-
-            userIds.forEach((id) => {
-              const username = userMap[id];
-              dataForDate[username] = 0;
-            });
-
-            allLogs
-              .filter(
-                (log) =>
-                  new Date(log.log_date).getDate() === date.getDate()
-              )
-              .forEach((log) => {
-                const username = userMap[log.user_id];
-                dataForDate[username] += log.duration;
-              });
-
-            return dataForDate;
-          });
-
-          setLogs({
-            data: chartData,
-            colors,
-            userMap,
-          });
-        } catch (err) {
-          setError("Došlo k chybě: " + err.message);
-        }
+  
+          return dataForDate;
+        });
+  
+        setLogs({
+          data: chartData,
+          colors,
+          userMap,
+        });
+      } catch (err) {
+        setError("Došlo k chybě: " + err.message);
       }
-    };
+    }
+  };
+  
 
+  fetchLogs();
+
+
+  useEffect(() => {
+    fetchLogs();
+  }, [selectedEvent, user.id, selectedMonth, selectedYear, friends, selectedFriends]);
+  
+
+
+
+  useEffect(() => {
     fetchLogs();
   }, [selectedEvent, user.id, selectedMonth, selectedYear, friends]);
-  
 
   const getDaysInMonth = (month, year) => {
     const date = new Date(year, month, 1);
@@ -296,11 +312,29 @@ const EventList = () => {
             </Button>
           </div>
 
+          <Typography variant="subtitle1">Vyberte přátele k zobrazení:</Typography>
+<List dense>
+  {friends.map((friend) => (
+    <ListItem key={friend.id} dense>
+      <ListItemText primary={friend.name || friend.username} />
+      <Checkbox
+        edge="end"
+        onChange={() => handleFriendSelection(friend.id)}
+        checked={selectedFriends.includes(friend.id)}
+        disabled={
+          !selectedFriends.includes(friend.id) && selectedFriends.length >= 5
+        }
+      />
+    </ListItem>
+  ))}
+</List>
+
+
           {/* Graf aktivity */}
           {logs.data && logs.data.length > 0 ? (
-  <div>
-    <Typography variant="subtitle1">Graf aktivity:</Typography>
-    <ResponsiveContainer width="100%" height={400}>
+            <div>
+              <Typography variant="subtitle1">Graf aktivity:</Typography>
+              <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={logs.data}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
@@ -322,10 +356,10 @@ const EventList = () => {
                   ))}
                 </BarChart>
               </ResponsiveContainer>
-  </div>
-) : (
-  <Typography variant="body2">Žádné záznamy pro tento měsíc.</Typography>
-)}
+            </div>
+          ) : (
+            <Typography variant="body2">Žádné záznamy pro tento měsíc.</Typography>
+          )}
 
         </>
       )}

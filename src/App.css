@@ -36,3 +36,18 @@
     transform: rotate(360deg);
   }
 }
+
+.MuiFormControl-root {
+  margin: 5px !important;
+}
+
+form {
+  margin-top: 10px;
+}
+
+button {
+  margin: 10px !important;
+}
+
+
+
