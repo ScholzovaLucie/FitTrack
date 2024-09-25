@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { List, ListItem, ListItemText, Alert } from '@mui/material';
+import { List, ListItem, ListItemText, Alert, Button, CircularProgress,Typography } from '@mui/material';
 import supabase from '../supabaseClient';
 import { useAuth } from '../AuthContext';
 
@@ -42,20 +42,52 @@ const FriendList = () => {
     fetchFriends();
   }, [user.id]);
 
+  const handleRemoveFriend = async (friendId) => {
+    setError('');
+    try {
+      const { data, error } = await supabase
+        .from('friends')
+        .delete()
+        .match({ user_id: user.id, friend_id: friendId });
+  
+      if (error) {
+        setError('Chyba při odstraňování přítele: ' + error.message);
+      } else {
+        // Aktualizujte seznam přátel po úspěšném odstranění
+        setFriends((prevFriends) => prevFriends.filter((friend) => friend.id !== friendId));
+      }
+
+      const {data2, error2} = await supabase
+        .from('friends')
+        .delete()
+        .match({ friend_id: user.id, user_id: friendId });
+    } catch (err) {
+      setError('Došlo k chybě: ' + err.message);
+    } 
+  };
+  
+
   return (
     <div>
       {error && <Alert severity="error">{error}</Alert>}
-      <List>
-        {friends.map(friend => (
-          <ListItem key={friend.friend_id}>
-            <ListItemText primary={friend.username} />
-            <ListItemText 
-              primary={friend.extern_id} 
-              style={{ marginLeft: '16px' }}  // Přidání levého okraje pro mezeru
-            />
-          </ListItem>
-        ))}
-      </List>
+      {friends.length > 0 ? (
+        <List>
+          {friends.map((friend) => (
+            <ListItem key={friend.id} divider>
+              <ListItemText primary={friend.name || friend.username} />
+              <Button
+                variant="outlined"
+                color="secondary"
+                onClick={() => handleRemoveFriend(friend.id)}
+              >
+                Odstranit
+              </Button>
+            </ListItem>
+          ))}
+        </List>
+      ) : (
+        <Typography>Nemáte žádné přátele.</Typography>
+      )}
     </div>
   );
 };
