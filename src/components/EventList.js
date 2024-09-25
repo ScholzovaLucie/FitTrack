@@ -245,6 +245,52 @@ const EventList = () => {
     return days;
   };
 
+  const handleDeleteEvent = async (eventId) => {
+    if (!window.confirm('Opravdu chcete tento event odstranit?')) {
+      return;
+    }
+
+    try {
+      // Odstranit všechny záznamy z event_participants
+      const { error: deleteParticipantsError } = await supabase
+        .from('event_participants')
+        .delete()
+        .eq('event_id', eventId);
+
+      if (deleteParticipantsError) {
+        setError('Chyba při odstraňování účastníků eventu: ' + deleteParticipantsError.message);
+        return;
+      }
+
+      // Odstranit všechny logy z event_logs
+      const { error: deleteLogsError } = await supabase
+        .from('event_logs')
+        .delete()
+        .eq('event_id', eventId);
+
+      if (deleteLogsError) {
+        setError('Chyba při odstraňování logů: ' + deleteLogsError.message);
+        return;
+      }
+
+      // Odstranit samotný event z events
+      const { error: deleteEventError } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId);
+
+      if (deleteEventError) {
+        setError('Chyba při odstraňování eventu: ' + deleteEventError.message);
+        return;
+      }
+
+      // Aktualizovat seznam eventů po odstranění
+      setEvents(events.filter(event => event.id !== eventId));
+    } catch (err) {
+      setError('Došlo k chybě: ' + err.message);
+    }
+  };
+
   return (
     <Paper style={{ padding: "20px" }}>
       <Typography variant="h5">Moje eventy</Typography>
@@ -269,6 +315,9 @@ const EventList = () => {
               }}
             >
               Přidat log
+            </Button>
+            <Button variant="outlined" color="secondary" onClick={() => handleDeleteEvent(event.id)}>
+              Odstranit
             </Button>
           </ListItem>
         ))}
