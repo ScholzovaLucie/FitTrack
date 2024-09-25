@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { TextField, Button, Typography, Alert, Card, CardContent, Grid } from '@mui/material';
+import { TextField, Button, Typography, Alert, CardContent } from '@mui/material';
 import supabase from '../supabaseClient';
 import { useAuth } from '../AuthContext';
 

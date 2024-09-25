@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Grid, Button, Typography, Paper, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Grid, Button, Typography, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import AddFriend from './AddFriend';
 import CreateEvent from './CreateEvent';
 import EventList from './EventList';
