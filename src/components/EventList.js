@@ -18,22 +18,41 @@ import supabase from "../supabaseClient";
 import { useAuth } from "../AuthContext";
 import AddLog from "./AddLog";
 import EventTimer from "./EventTimer";
+import UserLogsDialog from "./UserLogsDialog"; 
 
 const EventList = ({ runningEventId, setRunningEventId }) => {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
-  const [logs, setLogs] = useState({ user: [], friends: [] , colors: {}, userMap: {} });
+  const [logs, setLogs] = useState({ data: [], colors: {}, userMap: {} });
+  const [userLogs, setUserLogs] = useState([]); // Přidáno pro seznam logů uživatele
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedEventName, setSelectedEventName] = useState("");
   const [error, setError] = useState("");
   const [openAddLog, setOpenAddLog] = useState(false);
+  const [openUserLogsDialog, setOpenUserLogsDialog] = useState(false); // Stav pro otevření dialogu
   const [friends, setFriends] = useState([]);
 
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeek());
   const [selectedFriends, setSelectedFriends] = useState([]);
 
   const handleFriendSelection = (friendId) => {
-    setSelectedFriends((prevSelected) => {
+      const handleDeleteLog = async (logId) => {
+    if (window.confirm("Opravdu chcete tento záznam odstranit?")) {
+      try {
+        const { error } = await supabase
+          .from("event_logs")
+          .delete()
+          .eq("id", logId);
+        if (error) {
+          setError("Chyba při odstraňování záznamu: " + error.message);
+        } else {
+          fetchLogs(); // Aktualizovat seznam logů po odstranění
+        }
+      } catch (err) {
+        setError("Došlo k chybě: " + err.message);
+      }
+    }
+  };setSelectedFriends((prevSelected) => {
       if (prevSelected.includes(friendId)) {
         return prevSelected.filter((id) => id !== friendId);
       } else if (prevSelected.length < 5) {
@@ -55,6 +74,10 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
     const lastDayOfWeek = new Date(today.setDate(firstDayOfWeek.getDate() + 6)); // Neděle
     return [firstDayOfWeek, lastDayOfWeek];
   }
+
+  const resetWeek = () => {
+    setSelectedWeek(getCurrentWeek());
+  };
 
   const changeWeek = (direction) => {
     const [startDate, endDate] = selectedWeek;
@@ -168,6 +191,12 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
           setError("Chyba při načítání logů: " + logsError.message);
           return;
         }
+
+        // Filtrovat logy pro aktuálního uživatele
+        const userLogs = allLogs.filter((log) => log.user_id === user.id);
+
+        // Uložit logy uživatele do stavu
+        setUserLogs(userLogs);
 
         const userIds = [user.id, ...selectedFriends];
         const filteredLogs = allLogs.filter((log) => userIds.includes(log.user_id));
@@ -283,6 +312,24 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
     }
   };
 
+  const handleDeleteLog = async (logId) => {
+    if (window.confirm("Opravdu chcete tento záznam odstranit?")) {
+      try {
+        const { error } = await supabase
+          .from("event_logs")
+          .delete()
+          .eq("id", logId);
+        if (error) {
+          setError("Chyba při odstraňování záznamu: " + error.message);
+        } else {
+          fetchLogs(); // Aktualizovat seznam logů po odstranění
+        }
+      } catch (err) {
+        setError("Došlo k chybě: " + err.message);
+      }
+    }
+  };
+
   return (
     <Paper style={{ padding: "20px" }}>
       <Typography variant="h5">Moje eventy</Typography>
@@ -341,17 +388,33 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
             style={{
               display: "flex",
               alignItems: "center",
-              marginBottom: "20px",
               justifyContent: "center",
+              flexDirection: "column"
             }}
           >
-            <Button onClick={() => changeWeek("previous")}>&#8592;</Button>
+            <div style={{  
+              display: "flex", 
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row"}}>
+                <Button onClick={() => changeWeek("previous")}>&#8592;</Button>
             <Typography variant="h6" style={{ margin: "0 20px" }}>
               {`${selectedWeek[0].toLocaleDateString(
                 "cs-CZ"
               )} - ${selectedWeek[1].toLocaleDateString("cs-CZ")}`}
             </Typography>
             <Button onClick={() => changeWeek("next")}>&#8594;</Button>
+            </div>
+          
+             {/* Přidáváme nové tlačítko pro návrat k aktuálnímu týdnu */}
+             <Button
+              variant="outlined"
+              color="primary"
+              onClick={resetWeek}
+              style={{ marginLeft: "20px" }}
+            >
+              Dnešní týden
+            </Button>
           </div>
 
           <Typography variant="subtitle1">Vyberte přátele k zobrazení:</Typography>
@@ -404,6 +467,25 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
               Žádné záznamy pro tento týden.
             </Typography>
           )}
+
+       {/* Tlačítko pro otevření dialogu se seznamem logů */}
+       <div style={{ marginTop: "20px", textAlign: "center" }}>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => setOpenUserLogsDialog(true)}
+            >
+              Zobrazit moje záznamy
+            </Button>
+          </div>
+
+          {/* Dialog se seznamem logů uživatele */}
+          <UserLogsDialog
+            open={openUserLogsDialog}
+            onClose={() => setOpenUserLogsDialog(false)}
+            userLogs={userLogs}
+            handleDeleteLog={handleDeleteLog} // Volitelné
+          />
         </>
       )}
 
