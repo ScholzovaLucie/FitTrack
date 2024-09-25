@@ -28,6 +28,11 @@ const EventList = () => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [error, setError] = useState("");
   const [openAddLog, setOpenAddLog] = useState(false);
+  const [friends, setFriends] = useState([]);
+
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth()); // 0-11
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -78,45 +83,86 @@ const EventList = () => {
     };
 
     fetchEvents();
-  }, [user.id, events]);
+  }, [selectedEvent, user.id, selectedMonth, selectedYear]);
+
+  useEffect(() => {
+    const fetchFriends = async () => {
+      try {
+        const { data: friendIds, error: friendsError } = await supabase
+          .from('friends')
+          .select('friend_id')
+          .eq('user_id', user.id);
+
+        if (friendsError) {
+          setError('Chyba při načítání ID přátel: ' + friendsError.message);
+          return;
+        }
+
+        const friendIdList = friendIds.map(friend => friend.friend_id);
+        
+        const { data: friendDetails, error: usersError } = await supabase
+          .from('users')
+          .select('*')
+          .in('id', friendIdList);  // Filtruj uživatele podle friend_id
+
+        if (usersError) {
+          setError('Chyba při načítání informací o uživatelích: ' + usersError.message);
+          return;
+        }
+
+        setFriends(friendDetails);
+      } catch (err) {
+        setError('Došlo k chybě: ' + err.message);
+      }
+    };
+
+    fetchFriends();
+  }, [selectedEvent, user.id, selectedMonth, selectedYear]);
 
   useEffect(() => {
     const fetchLogs = async () => {
       if (selectedEvent) {
         try {
+          const startDate = new Date(selectedYear, selectedMonth, 1);
+          const endDate = new Date(selectedYear, selectedMonth + 1, 0);
           // Načíst logy pro aktuálního uživatele
           const { data: userLogs, error: userError } = await supabase
-            .from("event_logs")
-            .select("*")
-            .eq("event_id", selectedEvent)
-            .eq("user_id", user.id);
+          .from("event_logs")
+          .select("*")
+          .eq("event_id", selectedEvent)
+          .eq("user_id", user.id)
+          .gte('log_date', startDate.toISOString())
+          .lte('log_date', endDate.toISOString());
 
           if (userError) {
             setError("Chyba při načítání logů uživatele: " + userError.message);
             return;
           }
 
-          console.log("Logy uživatele:", userLogs); // Přidej log pro kontrolu
+         const daysInMonth = getDaysInMonth(selectedMonth, selectedYear);
+        const baseData = daysInMonth.map(date => ({
+          date: date.toLocaleDateString(),
+          duration: 0,
+        }));
 
-          // Zpracování logů uživatele
-          const userLogData = userLogs.reduce((acc, log) => {
-            const date = new Date(log.log_date).toLocaleDateString();
-            const existingLog = acc.find((item) => item.date === date);
+        // Sloučit logy uživatele s baseData
+        const userLogData = [...baseData];
 
-            if (existingLog) {
-              existingLog.duration += log.duration; // Sečíst trvání
-            } else {
-              acc.push({ date, duration: log.duration }); // Přidat nový záznam
-            }
-
-            return acc;
-          }, []);
+        userLogs.forEach(log => {
+          const date = new Date(log.log_date).toLocaleDateString();
+          const logEntry = userLogData.find(item => item.date === date);
+          if (logEntry) {
+            logEntry.duration += log.duration;
+          }
+        });
 
           // Načíst všechny logy pro přátele najednou
           const { data: allLogs, error: logsError } = await supabase
-            .from("event_logs")
-            .select("*")
-            .eq("event_id", selectedEvent);
+          .from("event_logs")
+          .select("*")
+          .eq("event_id", selectedEvent)
+          .gte('log_date', startDate.toISOString())
+          .lte('log_date', endDate.toISOString());
 
           if (logsError) {
             setError("Chyba při načítání logů přátel: " + logsError.message);
@@ -126,24 +172,19 @@ const EventList = () => {
           console.log("Všechny logy pro event:", allLogs); // Přidej log pro kontrolu
 
           // Filtrovat logy podle user_id pro přátele
-          const friendLogData = allLogs
-            .filter((log) => log.user_id !== user.id)
-            .reduce((acc, log) => {
-              const date = new Date(log.log_date).toLocaleDateString();
-              const existingLog = acc.find((item) => item.date === date);
+          const friendLogsData = [...baseData];
 
-              if (existingLog) {
-                existingLog.duration += log.duration; // Sečíst trvání
-              } else {
-                acc.push({ date, duration: log.duration }); // Přidat nový záznam
-              }
+        allLogs
+          .filter(log => log.user_id !== user.id)
+          .forEach(log => {
+            const date = new Date(log.log_date).toLocaleDateString();
+            const logEntry = friendLogsData.find(item => item.date === date);
+            if (logEntry) {
+              logEntry.duration += log.duration;
+            }
+          });
 
-              return acc;
-            }, []);
-
-          console.log("Logy přátel:", friendLogData); // Přidej log pro kontrolu
-
-          setLogs({ user: userLogData, friends: friendLogData });
+          setLogs({ user: userLogData, friends: friendLogsData });
         } catch (err) {
           setError("Došlo k chybě: " + err.message);
         }
@@ -151,7 +192,17 @@ const EventList = () => {
     };
 
     fetchLogs();
-  }, [selectedEvent, user.id]);
+  }, [selectedEvent, user.id, selectedMonth, selectedYear]);
+
+  const getDaysInMonth = (month, year) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    while (date.getMonth() === month) {
+      days.push(new Date(date));
+      date.setDate(date.getDate() + 1);
+    }
+    return days;
+  };
 
   return (
     <Paper style={{ padding: "20px" }}>
@@ -184,48 +235,67 @@ const EventList = () => {
 
       {selectedEvent && (
         <>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+  <Button onClick={() => {
+    if (selectedMonth === 0) {
+      setSelectedMonth(11);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  }}>
+    Předchozí měsíc
+  </Button>
+  <Typography variant="h6" style={{ margin: '0 20px' }}>
+    {new Date(selectedYear, selectedMonth).toLocaleString('cs-CZ', { month: 'long', year: 'numeric' })}
+  </Typography>
+  <Button onClick={() => {
+    if (selectedMonth === 11) {
+      setSelectedMonth(0);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  }}>
+    Následující měsíc
+  </Button>
+</div>
           <Typography variant="h6" style={{ marginTop: "20px" }}>
             Záznamy pro vybraný event
           </Typography>
           {logs.user.length > 0 ? (
-            <div>
-              <Typography variant="subtitle1">Můj graf:</Typography>
-              <BarChart width={600} height={300} data={logs.user}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <CustomYAxis dataKey="duration" />
-              <XAxis dataKey="date" />
-              <Tooltip />
-              <Bar dataKey="duration" fill="#8884d8" />
-              </BarChart>
-            </div>
-          ) : (
-            <ListItem>
-              <ListItemText primary="Žádné záznamy pro tento event." />
-            </ListItem>
-          )}
+  <div>
+    <Typography variant="subtitle1">Můj graf:</Typography>
+    <BarChart width={600} height={300} data={logs.user}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <CustomYAxis dataKey="duration" />
+      <XAxis dataKey="date" />
+      <Tooltip />
+      <Bar dataKey="duration" fill="#8884d8" />
+    </BarChart>
+  </div>
+) : (
+  <ListItem>
+    <ListItemText primary="Žádné záznamy pro tento měsíc." />
+  </ListItem>
+)}
 
-          {logs.friends &&
-            logs.friends.length > 0 &&
-            logs.friends.map((friendLogs, index) => (
-              <div key={index}>
-                <Typography variant="subtitle1">
-                  Graf přítele {index + 1}:
-                </Typography>
-                {logs.friends.length > 0 ? (
-                  <BarChart width={600} height={300} data={logs.friends}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <CustomYAxis dataKey="duration" />
-                    <XAxis dataKey="date" />
-                    <Tooltip />
-                    <Bar dataKey="duration" fill="#82ca9d" />
-                  </BarChart>
-                ) : (
-                  <Typography variant="body2">
-                    Žádné logy pro tohoto přítele.
-                  </Typography>
-                )}
-              </div>
-            ))}
+{logs.friends.length > 0 ? (
+  <div>
+    <Typography variant="subtitle1">Graf přátel:</Typography>
+    <BarChart width={600} height={300} data={logs.friends}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <CustomYAxis dataKey="duration" />
+      <XAxis dataKey="date" />
+      <Tooltip />
+      <Bar dataKey="duration" fill="#82ca9d" />
+    </BarChart>
+  </div>
+) : (
+  <Typography variant="body2">
+    Žádné záznamy přátel pro tento měsíc.
+  </Typography>
+)}
         </>
       )}
 
