@@ -334,7 +334,7 @@ const EventList = () => {
           {logs.data && logs.data.length > 0 ? (
             <div>
               <Typography variant="subtitle1">Graf aktivity:</Typography>
-              <ResponsiveContainer width="150%" height={400}>
+              <ResponsiveContainer width="100%" height={400}>
                 <BarChart data={logs.data}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
