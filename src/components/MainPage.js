@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Grid,
   Button,
@@ -15,7 +15,6 @@ import CreateEvent from './CreateEvent';
 import EventList from './EventList';
 import FriendList from './FriendList';
 import Profile from './Profile';
-import EventTimer from './EventTimer'
 import { useAuth } from '../AuthContext'; // Importujte váš kontext pro autentizaci
 
 const MainPage = () => {
@@ -25,6 +24,14 @@ const MainPage = () => {
   const [openProfile, setOpenProfile] = useState(false);
   const { setUser } = useAuth(); 
   const [runningEventId, setRunningEventId] = useState(null); 
+  const eventListRef = useRef(null);
+
+  const handleEventCreated = () => {
+    setOpenCreateEvent(false);
+    if (eventListRef.current) {
+      eventListRef.current.fetchEvents(); // Zavoláme fetchEvents
+    }
+  };
 
 
   const handleAddFriendClose = () => setOpenAddFriend(false);
@@ -86,6 +93,7 @@ const MainPage = () => {
         <EventList
           runningEventId={runningEventId}
           setRunningEventId={setRunningEventId}
+          ref={eventListRef}
         />
       </Grid>
       </Grid>
@@ -120,10 +128,10 @@ const MainPage = () => {
       <Dialog open={openCreateEvent} onClose={handleCreateEventClose}>
         <DialogTitle>Vytvořit nový event</DialogTitle>
         <DialogContent>
-          <CreateEvent />
+          <CreateEvent onEventCreated={handleEventCreated} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCreateEventClose} color="primary">
+          <Button onClick={() => setOpenCreateEvent(false)} color="primary">
             Zavřít
           </Button>
         </DialogActions>

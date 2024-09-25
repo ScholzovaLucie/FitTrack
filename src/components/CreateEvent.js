@@ -4,7 +4,7 @@ import { useAuth } from '../AuthContext';
 import { TextField, Button, Select, MenuItem, FormControl, InputLabel, Typography, Alert } from '@mui/material';
 
 
-const CreateEvent = () => {
+const CreateEvent = ({ onEventCreated }) => {
   const { user } = useAuth();  // Získání aktuálního uživatele
   const [eventName, setEventName] = useState('');
   const [friends, setFriends] = useState([]);
@@ -44,6 +44,10 @@ const CreateEvent = () => {
 
   // Vytvořit nový event
   const handleCreateEvent = async (e) => {
+    if (!eventName) {
+      setError('Název eventu je povinný.');
+      return;
+    }
     e.preventDefault(); 
     const participants = selectedFriend ? [selectedFriend] : []; 
   
@@ -52,8 +56,6 @@ const CreateEvent = () => {
       const {data: eventData, error: eventError } = await supabase
       .from('events')
       .insert([{ event_name: eventName, created_by: user.id }]).select().single();
-
-      console.log('event_name:', eventData);
       
       if (eventError) {
         console.error('Chyba při přidávání eventu:', eventError);
@@ -83,6 +85,9 @@ const CreateEvent = () => {
       setMessage('Event úspěšně vytvořen!');
       setEventName(''); // Resetuj pole pro název eventu
       setSelectedFriend(null); // Resetuj vybraného přítele
+      if (onEventCreated) {
+        onEventCreated();
+      }
     } catch (err) {
       setError('Došlo k chybě: ' + err.message);
     }

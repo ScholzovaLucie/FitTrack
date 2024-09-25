@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, forwardRef, useImperativeHandle } from "react";
 import {
   Typography,
   List,
@@ -20,7 +20,7 @@ import AddLog from "./AddLog";
 import EventTimer from "./EventTimer";
 import UserLogsDialog from "./UserLogsDialog"; 
 
-const EventList = ({ runningEventId, setRunningEventId }) => {
+const EventList = forwardRef(({ runningEventId, setRunningEventId }, ref) => {
   const { user } = useAuth();
   const [events, setEvents] = useState([]);
   const [logs, setLogs] = useState({ data: [], colors: {}, userMap: {} });
@@ -34,6 +34,8 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
 
   const [selectedWeek, setSelectedWeek] = useState(getCurrentWeek());
   const [selectedFriends, setSelectedFriends] = useState([]);
+
+  const hasEvents = events.length > 0;
 
   const handleFriendSelection = (friendId) => {
       const handleDeleteLog = async (logId) => {
@@ -52,7 +54,8 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
         setError("Došlo k chybě: " + err.message);
       }
     }
-  };setSelectedFriends((prevSelected) => {
+  };
+  setSelectedFriends((prevSelected) => {
       if (prevSelected.includes(friendId)) {
         return prevSelected.filter((id) => id !== friendId);
       } else if (prevSelected.length < 5) {
@@ -92,7 +95,7 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
     setSelectedWeek([newStartDate, newEndDate]);
   };
 
-  useEffect(() => {
+
     const fetchEvents = async () => {
       try {
         const { data: userEvents, error: userError } = await supabase
@@ -132,7 +135,7 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
         setError("Došlo k chybě: " + err.message);
       }
     };
-
+    useEffect(() => {
     fetchEvents();
   }, [selectedEvent, user.id, selectedWeek]);
 
@@ -258,7 +261,12 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
 
   useEffect(() => {
     fetchLogs();
-  }, [selectedEvent, user.id, selectedWeek, friends, selectedFriends]);
+    fetchEvents();
+  }, [selectedEvent, user.id, selectedWeek, friends, selectedFriends, userLogs]);
+
+  useImperativeHandle(ref, () => ({
+    fetchEvents,
+  }));
 
   const getDaysInWeek = (startDate, endDate) => {
     const days = [];
@@ -372,7 +380,7 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
         ))}
       </List>
 
-      {selectedEvent && (
+      {hasEvents && selectedEvent && (
         <>
           {/* Zobrazit časovač pro vybraný event */}
           <EventTimer
@@ -496,13 +504,16 @@ const EventList = ({ runningEventId, setRunningEventId }) => {
           <AddLog eventId={selectedEvent} onClose={() => setOpenAddLog(false)} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenAddLog(false)} color="primary">
+          <Button onClick={() => {
+            setOpenAddLog(false);
+            fetchLogs();
+          } } color="primary">
             Zavřít
           </Button>
         </DialogActions>
       </Dialog>
     </Paper>
   );
-};
+});
 
 export default EventList;
